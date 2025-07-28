@@ -7,6 +7,8 @@
 #include "CanvasHelpers/ReplicatedCanvasData.h"
 #include "ReplicatedCanvasManager.generated.h"
 
+class UCurveFloat;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnLineAddedSignature, FName, board, const FCanvasLineData&, line);
 
 /* Struct used for a replicated pseudo-map. */

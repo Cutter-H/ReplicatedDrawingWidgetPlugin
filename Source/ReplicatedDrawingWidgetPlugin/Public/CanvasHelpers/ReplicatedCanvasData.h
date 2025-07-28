@@ -6,6 +6,7 @@
 #include "ReplicatedCanvasData.generated.h"
 
 class USlateBrushAsset;
+class UCurveFloat;
 
 UENUM(BlueprintType)
 enum EPenDataFadeType : uint8 {

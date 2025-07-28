@@ -5,8 +5,9 @@
 
 #include "CanvasHelpers/ReplicatedCanvasManager.h"
 #include "CanvasHelpers/WorldCanvasSubsystem.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "Net/UnrealNetwork.h"
+
+#include "Engine/World.h"
 
 
 UCanvasPlayerStateHelper::UCanvasPlayerStateHelper() {

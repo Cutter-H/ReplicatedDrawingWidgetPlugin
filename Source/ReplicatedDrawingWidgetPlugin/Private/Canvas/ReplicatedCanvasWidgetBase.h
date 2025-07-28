@@ -72,7 +72,7 @@ protected:
 	void OnLineAddedToBoard(FName board, const FCanvasLineData& line);
 
 	/* This is the data the widget currently has of all the lines. These are ordered by time drawn. */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Canvas")
 	TArray<FCanvasLineData> GetLineData() const { return LineData; }
 
 
@@ -85,7 +85,7 @@ protected:
 	 *    |                                          |
 	 *    \------->  Widget-->  PlayerStateHelper---/        Client Level
 	 */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Canvas")
 	AReplicatedCanvasManager* GetManagerActor() const {return CanvasManager;}
 
 	/* Blueprint Getter for the Player State component. This is used to send requests to the server.
@@ -97,15 +97,15 @@ protected:
 	 *    |                                          |
 	 *    \------->  Widget-->  PlayerStateHelper---/        Client Level
 	 */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Canvas")
 	UCanvasPlayerStateHelper* GetPlayerStateHelper() const {return StateHelper;}
 
 	/* Rebuilds the board to match the lines found in the Canvas Manager. */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Canvas")
 	void RefreshFromManager();
 
 	/* Erases all lines on the board. */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Canvas")
 	void CleanBoard();
 	
 	

@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerState.h"
 #include "CanvasHelpers/CanvasPlayerStateHelper.h"
 #include "CanvasHelpers/ReplicatedCanvasManager.h"
+#include "Engine/World.h"
 
 void UWorldCanvasSubsystem::OnActorSpawned(AActor* SpawnedActor) {
 	if (SpawnedActor && SpawnedActor->IsA<APlayerState>() && SpawnedActor->HasAuthority()) {

@@ -18,7 +18,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/* Hard ref to the canvas manager so we don't have to find it or go through the subsystem every time. */ 
-	UPROPERTY(BlueprintReadOnly, Replicated)
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Canvas")
 	TObjectPtr<AReplicatedCanvasManager> CanvasManager;
 
 	/* Adds a new line to the server. */

@@ -12,8 +12,8 @@
 #include "Components/Border.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
-#include "Debug/ReporterGraph.h"
 
+#include "Curves/CurveFloat.h"
 #include "GameFramework/PlayerState.h"
 #include "Kismet/GameplayStatics.h"
 
