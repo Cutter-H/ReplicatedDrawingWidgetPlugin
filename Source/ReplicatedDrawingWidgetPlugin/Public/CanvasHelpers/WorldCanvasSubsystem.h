@@ -12,22 +12,24 @@ class AReplicatedCanvasManager;
 UCLASS()
 class REPLICATEDDRAWINGWIDGETPLUGIN_API UWorldCanvasSubsystem : public UWorldSubsystem {
 	GENERATED_BODY()
-
-	TObjectPtr<AReplicatedCanvasManager> CanvasManager;
 	
-	AReplicatedCanvasManager* GetCanvasManager();
-
+	/* Bound to the world and called when each actor spawns. Used to add the player state helpers. */
+	UFUNCTION()
 	void OnActorSpawned(AActor* SpawnedActor);
 public:
-	UWorldCanvasSubsystem();
+	/* We bind the above function here. */
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	/* Calls this same function on the Canvas Manager. */
+	UFUNCTION()
 	TArray<FCanvasLineData> GetBoardData(FName board);
 
+	/* We spawn the Canvas Manager here. We won't need to assign it here because it'll do that on its BeginPlay.
+	 * The alternative is we assign it here, but we have to do a check in its BeginPlay. So we just avoid it. 
+	 */
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
-	
-	virtual void Deinitialize() override;
 
+	/* Replicator actor used to store drawing data. */
 	UPROPERTY(BlueprintReadOnly, Category="Canvas")
-	TObjectPtr<AReplicatedCanvasManager> Replicator;
+	TObjectPtr<AReplicatedCanvasManager> CanvasManager;
 	
 };

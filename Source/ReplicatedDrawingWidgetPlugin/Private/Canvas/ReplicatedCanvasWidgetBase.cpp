@@ -2,31 +2,59 @@
 
 
 #include "ReplicatedCanvasWidgetBase.h"
-
-#include "EngineUtils.h"
-#include "Blueprint/WidgetBlueprintLibrary.h"
-#include "Blueprint/WidgetTree.h"
 #include "CanvasHelpers/CanvasPlayerStateHelper.h"
 #include "CanvasHelpers/ReplicatedCanvasManager.h"
 #include "CanvasHelpers/WorldCanvasSubsystem.h"
+
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Blueprint/WidgetTree.h"
+
 #include "Components/Border.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
+#include "Debug/ReporterGraph.h"
+
 #include "GameFramework/PlayerState.h"
 #include "Kismet/GameplayStatics.h"
 
 
 void UReplicatedCanvasWidgetBase::DrawLines(FPaintContext& context) const{
-	 for (const FCanvasLineData& line : LineData) {
+	for (const FCanvasLineData& line : LineData) {
 		 if(ShouldDrawLine(line)) {
-		 	FLinearColor color(line.Tint);
-		 	color *= Tint;
-		 	const float lineLife = line.GetLineLife(GetWorld());
+		 	FLinearColor color(line.PenData.Tint);
+		 	const float lineLife = line.GetLineLifetime(GetWorld());
+		 	float size = line.PenData.Size;
 		 	if (FadeDuration > 0 && EraseTime > 0 && lineLife > (EraseTime - FadeDuration)) {
-		 		const float fadeOpacity =  (EraseTime - lineLife) / FadeDuration;
-		 		color.A *= FMath::Clamp(fadeOpacity, 0.f, 1.f);
+		 		const float fadeAmount =  ( (EraseTime - lineLife) / FadeDuration);
+		 		
+		 		/* Opacity fade */ {
+		 			const auto opacityFadeType = line.PenData.OpacityFadeType;
+		 			if (opacityFadeType == EPenDataFadeType::PENFADETYPE_Linear) {
+		 				color.A *= fadeAmount;
+		 			}
+		 			if (opacityFadeType == EPenDataFadeType::PENFADETYPE_Curve) {
+		 				if (line.PenData.OpacityFadeCurve) {
+		 					color.A *= FMath::Abs(line.PenData.OpacityFadeCurve->GetFloatValue(1-fadeAmount));
+		 				}
+		 			}
+		 		
+		 		}
+		 		
+		 		/* Size Fade */ {
+		 			const auto sizeFadeType = line.PenData.SizeFadeType;
+		 			if (sizeFadeType == EPenDataFadeType::PENFADETYPE_Linear) {
+		 				size *= fadeAmount;
+		 			}
+		 			if (sizeFadeType == EPenDataFadeType::PENFADETYPE_Curve) {
+		 				if (line.PenData.SizeFadeCurve) {
+		 					size *= FMath::Abs(line.PenData.SizeFadeCurve->GetFloatValue(1-fadeAmount));
+		 				}
+		 			}
+		 		
+		 		}
 		 	}
-		 	UWidgetBlueprintLibrary::DrawSpline(context, line.StartingPoint, line.StartingDirection, line.StoppingPoint, line.StoppingDirection, color, line.Size);
+		 	UWidgetBlueprintLibrary::DrawSpline(context, line.StartingPoint, line.StartingDirection, line.StoppingPoint, line.StoppingDirection, color, size);
+		
 		 }
 	 }
  }
@@ -35,23 +63,20 @@ void UReplicatedCanvasWidgetBase::CleanupLines(){
 	if (EraseTime <= 0) {
 		return;
 	}
-	 while (LineData.Num() > 0 && LineData[0].GetLineLife(GetWorld()) > EraseTime) {
+	 while (LineData.Num() > 0 && LineData[0].GetLineLifetime(GetWorld()) > EraseTime) {
 		 LineData.RemoveAt(0);
 	 }
  }
 
-// UReplicatedCanvasWidgetBase::UReplicatedCanvasWidgetBase(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer) {
-// 	
-// }
-
-void UReplicatedCanvasWidgetBase::TrySetupReplicator() {
-	if (Replicator) { return; }
+void UReplicatedCanvasWidgetBase::TrySetupCanvasManager() {
+	if (CanvasManager) { return; }
 	
 	if (const auto subsys = GetWorld()->GetSubsystem<UWorldCanvasSubsystem>()) {
 		
-		Replicator = subsys->Replicator;
-		if (Replicator) {
-			Replicator->OnLineAdded.AddDynamic(this, &UReplicatedCanvasWidgetBase::OnLineAddedToBoard);
+		CanvasManager = subsys->CanvasManager;
+		if (CanvasManager) {
+			CanvasManager->OnLineAdded.AddDynamic(this, &UReplicatedCanvasWidgetBase::OnLineAddedToBoard);
+			RefreshFromManager();
 		}
 	}
 }
@@ -64,7 +89,7 @@ void UReplicatedCanvasWidgetBase::NativeConstruct() {
 	UOverlay* root = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("OverlayRoot"));
 	WidgetTree->RootWidget = root;
 
-	DrawingPad = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("DrawingPad"));
+	UBorder* DrawingPad = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("DrawingPad"));
 	DrawingPad->SetVisibility(ESlateVisibility::Visible);
 	DrawingPad->SetBrushColor(FLinearColor(0, 0, 0, 0));
 
@@ -76,12 +101,15 @@ void UReplicatedCanvasWidgetBase::NativeConstruct() {
 	SetVisibility(ESlateVisibility::Visible);
 	SetIsEnabled(true);
 	SetIsFocusable(true);
-	
+
+	if (!IsDesignTime() && BoardID == 0) {
+		BoardID = GetUniqueID();
+	}
 }
 
 void UReplicatedCanvasWidgetBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime) {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	TrySetupReplicator();
+	TrySetupCanvasManager();
 	CleanupLines();
 }
 
@@ -90,9 +118,6 @@ int32 UReplicatedCanvasWidgetBase::NativePaint(const FPaintArgs& Args, const FGe
 	
 	FPaintContext context(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 	DrawLines(context);
-	if (ShouldDraw()) {
-		
-	}
 	return Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 }
 
@@ -118,7 +143,7 @@ FReply UReplicatedCanvasWidgetBase::NativeOnMouseMove(const FGeometry& InGeometr
 			currentDirection = InMouseEvent.GetGestureDelta();
 		}
 		if (bStartedDrawing) {
-			const FCanvasLineData line(GetDrawerName(), UGameplayStatics::GetTimeSeconds(GetWorld()), LastPosition, LastDirection, currentPosition, currentDirection, PenData.Size, PenData.Tint);
+			const FCanvasLineData line(GetDrawerName(), BoardID, UGameplayStatics::GetTimeSeconds(GetWorld()), LastPosition, LastDirection, currentPosition, currentDirection, PenData);
 			LineData.Add(line);
 			AddLineToState(line);
 		}
@@ -145,28 +170,25 @@ void UReplicatedCanvasWidgetBase::NativeOnMouseLeave(const FPointerEvent& InMous
 #pragma endregion Mouse Overrides
 
 void UReplicatedCanvasWidgetBase::OnLineAddedToBoard(FName board, const FCanvasLineData& line) {
-	UKismetSystemLibrary::PrintString(this, "Func Hit");
-
 	if (board != BoardName) {
 		return;
 	}
-	 if (true){//line.DrawingPlayer != GetDrawerName()) {
+	 if (line.DrawingPlayer != GetDrawerName() && BoardID != line.BoardID) {
 	 	LineData.Add(line);
-	 	UKismetSystemLibrary::PrintString(this, "Line Added");
 	 }
  }
 
-void UReplicatedCanvasWidgetBase::RefreshFromReplicator() {
+void UReplicatedCanvasWidgetBase::RefreshFromManager() {
 	LineData.Empty();
-	if (Replicator) {
-		LineData = Replicator->GetCanvasLines(BoardName);
+	if (CanvasManager) {
+		LineData = CanvasManager->GetCanvasLines(BoardName);
 	}
 }
 
 void UReplicatedCanvasWidgetBase::CleanBoard() {
 	LineData.Empty();
-	if (Replicator) {
-		Replicator->CleanBoard(BoardName);
+	if (GetPlayerStateHelper()) {
+		GetPlayerStateHelper()->CleanBoard(BoardName);
 	}
 }
 
@@ -185,7 +207,9 @@ void UReplicatedCanvasWidgetBase::AddLineToState(const FCanvasLineData& line) {
 
 FName UReplicatedCanvasWidgetBase::GetDrawerName_Implementation() {
 	if (DrawerName == FName()) {
-		DrawerName = FName(GetOwningPlayerState(true)->GetPlayerName());
+		if (GetOwningPlayerState()) {
+			DrawerName = FName(GetOwningPlayerState()->GetPlayerName());
+		}
 	}
 	return DrawerName;
 }

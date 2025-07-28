@@ -6,6 +6,7 @@
 #include "CanvasHelpers/ReplicatedCanvasManager.h"
 #include "CanvasHelpers/WorldCanvasSubsystem.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 
 UCanvasPlayerStateHelper::UCanvasPlayerStateHelper() {
@@ -14,11 +15,32 @@ UCanvasPlayerStateHelper::UCanvasPlayerStateHelper() {
 	SetAutoActivate(true);
 }
 
-void UCanvasPlayerStateHelper::AddLine_Implementation(FName boardname, FCanvasLineData newLine) {
-	if (const auto subsys = GetWorld()->GetSubsystem<UWorldCanvasSubsystem>()) {
-		if (subsys->Replicator) {
-			UKismetSystemLibrary::PrintString(this, "Line Added");
-			subsys->Replicator->AddLine(boardname, newLine);	
+void UCanvasPlayerStateHelper::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const {
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCanvasPlayerStateHelper, CanvasManager);
+}
+
+void UCanvasPlayerStateHelper::CleanBoard_Implementation(FName boardname) {
+	if (!CanvasManager) {
+		if (const auto subsys = GetWorld()->GetSubsystem<UWorldCanvasSubsystem>()) {
+			CanvasManager = subsys->CanvasManager;
 		}
 	}
+		
+	if (CanvasManager) {
+		CanvasManager->CleanBoard(boardname);	
+	}
+}
+
+void UCanvasPlayerStateHelper::AddLine_Implementation(FName boardname, FCanvasLineData newLine) {
+	if (!CanvasManager) {
+		if (const auto subsys = GetWorld()->GetSubsystem<UWorldCanvasSubsystem>()) {
+			CanvasManager = subsys->CanvasManager;
+		}
+	}
+		
+	if (CanvasManager) {
+		CanvasManager->AddLine(boardname, newLine);	
+	}
+	
 }

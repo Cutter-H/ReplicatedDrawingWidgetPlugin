@@ -1,31 +1,46 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
+
 #include "CanvasHelpers/ReplicatedCanvasManager.h"
 
+#include "CanvasManagerSettings.h"
 #include "CanvasHelpers/WorldCanvasSubsystem.h"
-#include "GameFramework/PlayerState.h"
-#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Net/UnrealNetwork.h"
 
-// Sets default values
+#include "UObject/ConstructorHelpers.h"
+
+
+
 AReplicatedCanvasManager::AReplicatedCanvasManager() {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	bNetLoadOnClient = true;
 	bReplicates = true;
 	bAlwaysRelevant = true;
-	
+
+	static ConstructorHelpers::FObjectFinder<UCanvasManagerSettings> Finder(TEXT("/ReplicatedDrawingWidgetPlugin/CanvasManagerSettings.CanvasManagerSettings"));
+	if (Finder.Succeeded())	{
+		MaxNumberOfLines = Finder.Object->MaxNumberOfLines;
+		MaxLineDuration = Finder.Object->MaxLineDuration;
+		
+	}
+	else {
+		MaxNumberOfLines = 0;
+		MaxLineDuration = 0;
+	}
 }
 
-bool AReplicatedCanvasManager::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget,
-	const FVector& SrcLocation) const {
-	return Super::IsNetRelevantFor(RealViewer, ViewTarget, SrcLocation);
-}
-
-// Called when the game starts or when spawned
 void AReplicatedCanvasManager::BeginPlay() {
 	Super::BeginPlay();
+	/* The subsystem spawned us on the server, but let's tell it who we are on all clients, since it isn't replicated. */
 	if (const auto subsys = GetWorld()->GetSubsystem<UWorldCanvasSubsystem>()) {
-		subsys->Replicator = this;
+		subsys->CanvasManager = this;
+	}
+}
+
+void AReplicatedCanvasManager::Tick(float DeltaTime) {
+	Super::Tick(DeltaTime);
+	if (HasAuthority()) {
+		CleanLines();
 	}
 }
 
@@ -39,12 +54,20 @@ void AReplicatedCanvasManager::ReplicateLineAdded_Implementation(FName boardname
 	OnLineAdded.Broadcast(boardname, newLine);
 }
 
-// Called every frame
-void AReplicatedCanvasManager::Tick(float DeltaTime) {
-	Super::Tick(DeltaTime);
+void AReplicatedCanvasManager::CleanLines() {
+	if (MaxNumberOfLines <= 0 && MaxLineDuration <= 0) {
+		return;
+	}
+	
+	for (FReplicatedCanvasData& board : Boards) {
+		while (board.Lines.Num() > 0 && (board.Lines.Num() > MaxNumberOfLines || board.Lines[0].GetLineLifetime(GetWorld()) > MaxLineDuration)) {
+			board.Lines.RemoveAt(0);
+		}	
+	
+	}	
 }
 
-TArray<FCanvasLineData> AReplicatedCanvasManager::GetCanvasLines(FName canvas) {
+TArray<FCanvasLineData> AReplicatedCanvasManager::GetCanvasLines(FName canvas) const {
 	for (const auto& board : Boards) {
 		if (board.BoardName == canvas) {
 			return board.Lines;
@@ -73,8 +96,4 @@ void AReplicatedCanvasManager::CleanBoard(FName boardname) {
 			Boards.RemoveAt(i);
 		}
 	}
-}
-
-void AReplicatedCanvasManager::AddLineOnServer_Implementation(FName boardname, FCanvasLineData newLine) {
-	AddLine(boardname, newLine);
 }

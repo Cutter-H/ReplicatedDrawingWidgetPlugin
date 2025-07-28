@@ -6,23 +6,54 @@
 #include "ReplicatedCanvasData.generated.h"
 
 class USlateBrushAsset;
-/**
- * 
- */
+
+UENUM(BlueprintType)
+enum EPenDataFadeType : uint8 {
+	/* No fade will be made. */
+	PENFADETYPE_NoFade = 0 UMETA(DisplayName = "No Fade"),
+	/* A consistent fade of 1 to 0 will be made. */
+	PENFADETYPE_Linear = 1 UMETA(DisplayName = "Linear"),
+	/* A fade determined by a curve is made. */
+	PENFADETYPE_Curve = 2 UMETA(DisplayName = "Curve"),	
+};
+
 USTRUCT(BlueprintType)
 struct FCanvasPenData {
 	GENERATED_BODY()
 
 	FCanvasPenData() {}
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen")
-	TObjectPtr<USlateBrushAsset> Brush = nullptr;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen")
-	FColor Tint = FColor::White;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen")
+	/* Brush used to draw the line. THIS IS NOT IMPLEMENTED*/
+	UPROPERTY( /* EditAnywhere,  */ BlueprintReadWrite, Category = "Pen")
+	TObjectPtr<USlateBrushAsset> Brush = nullptr;
+
+	/* Distance between each stamp of the brush. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen", meta=(EditCondition = "Brush != nullptr", EditConditionHides))
+	float StepSize = 1.f;
+
+	/* Tint of the line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen", meta=(EditCondition = "Brush == nullptr", EditConditionHides))
+	FLinearColor Tint = FColor::White;
+
+	/* Size of the line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen", meta=(EditCondition = "Brush == nullptr", EditConditionHides))
 	float Size = 1.f;
+
+	/* Determines how the opacity fades if the board supports fading. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen|Fading")
+	TEnumAsByte<EPenDataFadeType> OpacityFadeType = EPenDataFadeType::PENFADETYPE_Linear;
+
+	/* A curve that makes the line opacity decrease if the board fades lines. The value used will be an absolute value of -1 to 1. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen|Fading", meta=(EditCondition = "OpacityFadeType == EPenDataFadeType::PENFADETYPE_Curve", EditConditionHides))
+	TObjectPtr<UCurveFloat> OpacityFadeCurve = nullptr;
+
+	/* Determines how the line shrinks if the board supports fading. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen|Fading")
+	TEnumAsByte<EPenDataFadeType> SizeFadeType = EPenDataFadeType::PENFADETYPE_Linear;;
+	
+	/* A curve that makes the line size decrease if the board fades lines. The value used will be an absolute value of -1 to 1. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pen|Fading", meta=(EditCondition = "SizeFadeType == EPenDataFadeType::PENFADETYPE_Curve", EditConditionHides))
+	TObjectPtr<UCurveFloat> SizeFadeCurve = nullptr;
 	
 };
 
@@ -30,28 +61,36 @@ USTRUCT(BlueprintType)
 struct FCanvasLineData {
 	GENERATED_BODY()
 
-	FCanvasLineData(){}
-	FCanvasLineData(FName name, float time, FVector2D startP, FVector2D startD, FVector2D stopP,  FVector2D stopD, float size = 1.f, FColor color = FColor::White) :
-	DrawingPlayer(name), DrawnTime(time), StartingPoint(startP), StartingDirection(startD), StoppingPoint(stopP), StoppingDirection(stopD), Size(size), Tint(color)
+	FCanvasLineData() {}
+	FCanvasLineData(FName boardName, int boardID, float time, FVector2D startP, FVector2D startD, FVector2D stopP,  FVector2D stopD, FCanvasPenData penData = FCanvasPenData()) :
+	DrawingPlayer(boardName), BoardID(boardID), DrawnTime(time), StartingPoint(startP), StartingDirection(startD), StoppingPoint(stopP), StoppingDirection(stopD), PenData(penData)
 	{};
 
+	/* Player that drew the line. */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
 	FName DrawingPlayer = FName();
+	/* The unique id used to identify boards of the same player. */
+	UPROPERTY(BlueprintReadOnly, Category = "Line")
+	int BoardID = 0;
+	/* The game time at which the line was drawn. */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
 	float DrawnTime = 0.f;
+	/* The starting point of the line. */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
 	FVector2D StartingPoint = FVector2D::ZeroVector;
+	/* The starting direction the cursor was going when the line was started. */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
 	FVector2D StartingDirection = FVector2D::ZeroVector;
+	/* Stopping Point of the line. */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
 	FVector2D StoppingPoint = FVector2D::ZeroVector;
+	/* The stopping direction the cursor was going when the line was started. */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
 	FVector2D StoppingDirection = FVector2D::ZeroVector;
+	/* Pen data that is used for drawing the line.  */
 	UPROPERTY(BlueprintReadOnly, Category = "Line")
-	float Size = 1.f;
-	UPROPERTY(BlueprintReadOnly, Category = "Line")
-	FColor Tint = FColor::White;
+	FCanvasPenData PenData = FCanvasPenData();
 
-	float GetLineLife(UObject* worldContext) const;
-	
+	/* Returns how long since the line has been drawn. */
+	float GetLineLifetime(UObject* worldContext) const;
 };
