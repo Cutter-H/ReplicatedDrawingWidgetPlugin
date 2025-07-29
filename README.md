@@ -17,7 +17,7 @@ Any changes to pen data will immediately affect new lines. There are overridable
 
 ## How does it replicate?
 
-Since widgets do not replicate, the plugin comes with a subsystem that spawns a replicated manager actor. It also listens for actor spawns and adds a lightweight component to player states when they are spawned. The player state component allows the widget to send information to the server. The manager actor holds all data and only 1 is created. Widgets are bound to a delegate on the replicated manager that sends out broadcasts on lines added. The widgets can also erase the data as well as refresh to match the manager to ensure no errors are present. The widgets are identified by the BoardName in the widget as well as the player drawing. 
+Since widgets do not replicate, the plugin comes with a subsystem that spawns a replicated manager actor. This is so no additional steps are required on your part, making the wodget drag and drop. It also listens for actor spawns and adds a lightweight component to player states when they are spawned. The player state component allows the widget to send information to the server. The manager actor holds all data and only 1 is created. Widgets are bound to a delegate on the replicated manager that sends out broadcasts on lines added. The widgets can also erase the data as well as refresh to match the manager to ensure no errors are present. The widgets are identified by the BoardName in the widget as well as the player drawing. 
 
 Please see the video below for an example of the usage. 
 
