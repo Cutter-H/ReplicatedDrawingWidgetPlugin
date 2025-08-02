@@ -18,13 +18,17 @@ UCLASS()
 class REPLICATEDDRAWINGWIDGETPLUGIN_API UReplicatedCanvasWidgetBase : public UUserWidget {
 	GENERATED_BODY()
 
+	
 	// Basically a tick function that draws lines.
 	void DrawLines(FPaintContext& context) const;
 	// Tick function that deletes unused lines outside the EraseTime. 
 	void CleanupLines();
 	/* Tick function that attempts to set up maanger. If it's already set this does nothing. ONLY ONE CANVAS MANAGER SHOULD BE USED PER MAP. */
 	void TrySetupCanvasManager();
-	
+
+
+	//
+	void MakeRotatedBrush(FPaintContext& context, const FCanvasPenData& penData, FVector2D brushSize, FVector2D pos, float rotation) const;
 	bool bWantsToDraw = false;
 	bool bStartedDrawing = false;
 	TArray<FCanvasLineData> LineData;

@@ -16,14 +16,17 @@
 #include "Curves/CurveFloat.h"
 #include "GameFramework/PlayerState.h"
 #include "Kismet/GameplayStatics.h"
+#include "Slate/SlateBrushAsset.h"
 
 
 void UReplicatedCanvasWidgetBase::DrawLines(FPaintContext& context) const{
+	FVector2D currentPos = FVector2D::ZeroVector;
+	FVector2D lineDirection = FVector2D::ZeroVector;
 	for (const FCanvasLineData& line : LineData) {
 		 if(ShouldDrawLine(line)) {
 		 	FLinearColor color(line.PenData.Tint);
 		 	const float lineLife = line.GetLineLifetime(GetWorld());
-		 	float size = line.PenData.Size;
+		 	float sizeScalar = 1.f;
 		 	if (FadeDuration > 0 && EraseTime > 0 && lineLife > (EraseTime - FadeDuration)) {
 		 		const float fadeAmount =  ( (EraseTime - lineLife) / FadeDuration);
 		 		
@@ -43,18 +46,40 @@ void UReplicatedCanvasWidgetBase::DrawLines(FPaintContext& context) const{
 		 		/* Size Fade */ {
 		 			const auto sizeFadeType = line.PenData.SizeFadeType;
 		 			if (sizeFadeType == EPenDataFadeType::PENFADETYPE_Linear) {
-		 				size *= fadeAmount;
+		 				sizeScalar *= fadeAmount;
 		 			}
 		 			if (sizeFadeType == EPenDataFadeType::PENFADETYPE_Curve) {
 		 				if (line.PenData.SizeFadeCurve) {
-		 					size *= FMath::Abs(line.PenData.SizeFadeCurve->GetFloatValue(1-fadeAmount));
+		 					sizeScalar *= FMath::Abs(line.PenData.SizeFadeCurve->GetFloatValue(1-fadeAmount));
 		 				}
 		 			}
 		 		
 		 		}
 		 	}
-		 	UWidgetBlueprintLibrary::DrawSpline(context, line.StartingPoint, line.StartingDirection, line.StoppingPoint, line.StoppingDirection, color, size);
-		
+		 	if (line.PenData.Brush) {
+		 		const FVector2D brushSize = line.PenData.BrushSize * sizeScalar;
+		 		currentPos = line.StartingPoint;
+		 		lineDirection = (line.StoppingPoint - currentPos).GetSafeNormal();
+		 		float rotationAngle = 0.f;
+		 		if (line.PenData.bBrushFollowsLine) {
+		 			rotationAngle = FMath::RadiansToDegrees(FMath::Atan2(lineDirection.X, -lineDirection.Y));
+		 			while (rotationAngle < 0.f) { rotationAngle += 360.f; }
+		 			while (rotationAngle > 360.f) { rotationAngle -= 360.f; }
+		 		}
+		 		while (currentPos != line.StoppingPoint) {
+		 			MakeRotatedBrush(context, line.PenData, brushSize, currentPos, rotationAngle);
+		 			if ((currentPos - line.StoppingPoint).Size() <= line.PenData.StepSize) {
+		 				currentPos = line.StoppingPoint;
+		 			}
+		 			else {
+		 				currentPos += lineDirection * line.PenData.StepSize;
+		 			}
+		 		}
+		 		MakeRotatedBrush(context, line.PenData, brushSize, currentPos, rotationAngle);
+		 	}
+		 	else {
+		 		UWidgetBlueprintLibrary::DrawLine(context, line.StartingPoint, line.StoppingPoint, color, false, sizeScalar * line.PenData.LineSize);
+		 	}
 		 }
 	 }
  }
@@ -79,6 +104,21 @@ void UReplicatedCanvasWidgetBase::TrySetupCanvasManager() {
 			RefreshFromManager();
 		}
 	}
+}
+
+void UReplicatedCanvasWidgetBase::MakeRotatedBrush(FPaintContext& context, const FCanvasPenData& penData, FVector2D brushSize, FVector2D pos, float rotation) const {
+	context.MaxLayer++;
+	FSlateDrawElement::MakeRotatedBox(
+		context.OutDrawElements,
+	   context.MaxLayer,
+	   context.AllottedGeometry.ToPaintGeometry(brushSize, FSlateLayoutTransform(pos - (brushSize/2))),
+	   &penData.Brush->Brush,
+	   ESlateDrawEffect(penData.DrawEffect),
+	   rotation,
+	   TOptional<FVector2f>(),
+	   FSlateDrawElement::RelativeToElement,
+	   penData.Tint
+   );
 }
 
 void UReplicatedCanvasWidgetBase::NativeConstruct() {
@@ -132,6 +172,7 @@ FReply UReplicatedCanvasWidgetBase::NativeOnMouseButtonDown(const FGeometry& InG
 }
 
 FReply UReplicatedCanvasWidgetBase::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) {
+	UKismetSystemLibrary::PrintString(this, "We hit");
 	if (ShouldDraw()) {
 		
 		FVector2D currentPosition = InGeometry.AbsoluteToLocal( InMouseEvent.GetScreenSpacePosition());
@@ -143,7 +184,7 @@ FReply UReplicatedCanvasWidgetBase::NativeOnMouseMove(const FGeometry& InGeometr
 			currentDirection = InMouseEvent.GetGestureDelta();
 		}
 		if (bStartedDrawing) {
-			const FCanvasLineData line(GetDrawerName(), BoardID, UGameplayStatics::GetTimeSeconds(GetWorld()), LastPosition, LastDirection, currentPosition, currentDirection, PenData);
+			const FCanvasLineData line(GetDrawerName(), BoardID, UGameplayStatics::GetTimeSeconds(GetWorld()), LastPosition, currentPosition, PenData);
 			LineData.Add(line);
 			AddLineToState(line);
 		}
@@ -174,7 +215,7 @@ void UReplicatedCanvasWidgetBase::OnLineAddedToBoard(FName board, const FCanvasL
 		return;
 	}
 	 if (line.DrawingPlayer != GetDrawerName() && BoardID != line.BoardID) {
-	 	LineData.Add(line);
+	 	LineData.Add(FCanvasLineData(line, UGameplayStatics::GetTimeSeconds(GetWorld())));
 	 }
  }
 
@@ -216,7 +257,7 @@ FName UReplicatedCanvasWidgetBase::GetDrawerName_Implementation() {
 
 bool UReplicatedCanvasWidgetBase::ShouldDraw_Implementation() const {
 	
-	if (!bWantsToDraw || !(PenData.Size > 0) || !(PenData.Tint.A > 0)) {
+	if (!bWantsToDraw || PenData.HasNoSize() || !(PenData.Tint.A > 0)) {
 		return false;
 	}
 	

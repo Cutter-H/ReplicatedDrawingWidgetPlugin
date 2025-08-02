@@ -60,8 +60,13 @@ void AReplicatedCanvasManager::CleanLines() {
 	}
 	
 	for (FReplicatedCanvasData& board : Boards) {
-		while (board.Lines.Num() > 0 && (board.Lines.Num() > MaxNumberOfLines || board.Lines[0].GetLineLifetime(GetWorld()) > MaxLineDuration)) {
-			board.Lines.RemoveAt(0);
+		
+		while (board.Lines.Num() > 0) {
+			const bool timeCull = MaxLineDuration > 0 ? board.Lines[0].GetLineLifetime(GetWorld()) > MaxLineDuration : false;
+			const bool numCull = MaxNumberOfLines > 0 ? board.Lines.Num() > MaxNumberOfLines : false;
+			if (timeCull || numCull) {
+				board.Lines.RemoveAt(0);
+			}
 		}	
 	
 	}	
