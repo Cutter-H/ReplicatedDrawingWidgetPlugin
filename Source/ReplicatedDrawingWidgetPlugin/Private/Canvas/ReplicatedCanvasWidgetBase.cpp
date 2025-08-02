@@ -172,7 +172,6 @@ FReply UReplicatedCanvasWidgetBase::NativeOnMouseButtonDown(const FGeometry& InG
 }
 
 FReply UReplicatedCanvasWidgetBase::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) {
-	UKismetSystemLibrary::PrintString(this, "We hit");
 	if (ShouldDraw()) {
 		
 		FVector2D currentPosition = InGeometry.AbsoluteToLocal( InMouseEvent.GetScreenSpacePosition());
