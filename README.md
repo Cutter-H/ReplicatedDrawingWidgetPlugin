@@ -4,7 +4,7 @@ For documentation please see the [Wiki](https://github.com/Cutter-H/ReplicatedDr
 
 If you wish for further information on the plugin's C++ related content, please see the header files, as they are thoroughly commented.
 
-Release for 5.5: [Here](https://github.com/Cutter-H/ReplicatedDrawingWidgetPlugin/releases/tag/5.5)
+Releases can be found [Here](https://github.com/Cutter-H/ReplicatedDrawingWidgetPlugin/releases/)
 
 If you want support for other versions let me know.
 
